@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftRight, Wallet, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 
-// ===== CONFIGURARE =====
-// IMPORTANT: Actualizează această adresă după deployment!
-const ETHEREUM_CHAIN_ID = '0x7a69'; // Anvil default (31337)
+const ETHEREUM_CHAIN_ID = '0x7a69';
 const IBT_CONTRACT_ADDRESS = import.meta.env.VITE_IBT_CONTRACT_ADDRESS;
 const RPC_URL = import.meta.env.VITE_RPC_URL;
 const BACKEND_URL = 'http://localhost:3001';
 
 function App() {
-  // State management
   const [ethAccount, setEthAccount] = useState(null);
   const [suiAccount, setSuiAccount] = useState(null);
   const [amount, setAmount] = useState('');
@@ -19,11 +16,6 @@ function App() {
   const [status, setStatus] = useState({ type: '', message: '' });
   const [loading, setLoading] = useState(false);
 
-  // ===== WALLET CONNECTIONS =====
-
-  /**
-   * Conectează MetaMask (Ethereum)
-   */
   const connectEthereum = async () => {
     try {
       if (!window.ethereum) {
@@ -31,19 +23,16 @@ function App() {
         return;
       }
 
-      // Cere permisiune de la utilizator
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts'
       });
 
-      // Încearcă să comute la rețeaua Anvil
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: ETHEREUM_CHAIN_ID }]
         });
       } catch (switchError) {
-        // Dacă rețeaua nu există, adaugă-o
         if (switchError.code === 4902) {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
@@ -70,9 +59,6 @@ function App() {
     }
   };
 
-  /**
-   * Conectează Sui Wallet
-   */
   const connectSui = async () => {
     try {
       if (!window.suiWallet) {
@@ -93,14 +79,8 @@ function App() {
     }
   };
 
-  // ===== BALANCE FETCHING =====
-
-  /**
-   * Obține balanța IBT de pe Ethereum
-   */
   const fetchEthBalance = async (account) => {
     try {
-      // Encodează funcția balanceOf(address)
       const balanceHex = await window.ethereum.request({
         method: 'eth_call',
         params: [{
@@ -109,7 +89,6 @@ function App() {
         }, 'latest']
       });
       
-      // Convertește din hex în număr zecimal
       const balance = parseInt(balanceHex, 16) / 1e18;
       setEthBalance(balance.toFixed(4));
     } catch (error) {
@@ -118,13 +97,8 @@ function App() {
     }
   };
 
-  /**
-   * Obține balanța IBT de pe Sui
-   */
   const fetchSuiBalance = async (account) => {
     try {
-      // În implementarea reală, ai face un apel RPC către Sui
-      // Pentru demo, setăm 0
       setSuiBalance('0.0000');
     } catch (error) {
       console.error('Failed to fetch SUI balance:', error);
@@ -132,13 +106,7 @@ function App() {
     }
   };
 
-  // ===== BRIDGE OPERATIONS =====
-
-  /**
-   * Execută transferul bridge
-   */
   const executeBridge = async () => {
-    // Validări
     if (!amount || parseFloat(amount) <= 0) {
       setStatus({ type: 'error', message: 'Introdu o sumă validă' });
       return;
@@ -171,20 +139,14 @@ function App() {
     }
   };
 
-  /**
-   * Bridge de la Ethereum la Sui
-   */
   const bridgeEthToSui = async () => {
-    // Convertește suma în wei (hex)
     const amountWei = BigInt(parseFloat(amount) * 1e18).toString(16);
     const amountHex = '0x' + amountWei;
     
-    // Encodează funcția burn(uint256)
     const burnData = '0x42966c68' + amountHex.slice(2).padStart(64, '0');
     
     setStatus({ type: 'info', message: '🔥 Se ard tokenii pe Ethereum...' });
     
-    // Pasul 1: Arde tokenii pe Ethereum
     const txHash = await window.ethereum.request({
       method: 'eth_sendTransaction',
       params: [{
@@ -196,12 +158,10 @@ function App() {
 
     setStatus({ type: 'info', message: '⏳ Se așteaptă confirmarea pe Ethereum...' });
     
-    // Așteaptă confirmarea
     await waitForTxConfirmation(txHash);
 
     setStatus({ type: 'info', message: '✨ Se mint-ează tokenii pe Sui...' });
 
-    // Pasul 2: Apelează backend-ul pentru mint pe Sui
     const response = await fetch(`${BACKEND_URL}/bridge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -221,7 +181,6 @@ function App() {
         message: `✅ Succes! ${amount} IBT transferați pe Sui!` 
       });
       
-      // Actualizează balanțele
       await fetchEthBalance(ethAccount);
       if (suiAccount) await fetchSuiBalance(suiAccount);
       setAmount('');
@@ -230,13 +189,9 @@ function App() {
     }
   };
 
-  /**
-   * Bridge de la Sui la Ethereum
-   */
   const bridgeSuiToEth = async () => {
     setStatus({ type: 'info', message: '🔥 Se ard tokenii pe Sui...' });
 
-    // Apelează backend-ul
     const response = await fetch(`${BACKEND_URL}/bridge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -256,7 +211,6 @@ function App() {
         message: `✅ Succes! ${amount} IBT transferați pe Ethereum!` 
       });
       
-      // Actualizează balanțele
       if (ethAccount) await fetchEthBalance(ethAccount);
       await fetchSuiBalance(suiAccount);
       setAmount('');
@@ -265,9 +219,6 @@ function App() {
     }
   };
 
-  /**
-   * Așteaptă confirmarea tranzacției pe Ethereum
-   */
   const waitForTxConfirmation = async (txHash) => {
     let receipt = null;
     while (!receipt) {
@@ -282,18 +233,13 @@ function App() {
     return receipt;
   };
 
-  /**
-   * Schimbă direcția bridge-ului
-   */
   const switchDirection = () => {
     setDirection(direction === 'eth-to-sui' ? 'sui-to-eth' : 'eth-to-sui');
   };
 
-  // ===== RENDER =====
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-white mb-2">🌉 IBT Bridge</h1>
           <p className="text-blue-200">
@@ -301,12 +247,9 @@ function App() {
           </p>
         </div>
 
-        {/* Main Card */}
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20">
           
-          {/* Wallet Connections */}
           <div className="grid grid-cols-2 gap-4 mb-8">
-            {/* Ethereum Wallet */}
             <div>
               <button
                 onClick={connectEthereum}
@@ -335,7 +278,6 @@ function App() {
               </button>
             </div>
 
-            {/* Sui Wallet */}
             <div>
               <button
                 onClick={connectSui}
@@ -365,7 +307,6 @@ function App() {
             </div>
           </div>
 
-          {/* Bridge Direction */}
           <div className="mb-6">
             <div className="flex items-center justify-center gap-4">
               <div className="text-white font-semibold text-lg">
@@ -384,7 +325,6 @@ function App() {
             </div>
           </div>
 
-          {/* Amount Input */}
           <div className="mb-6">
             <label className="block text-white mb-2 font-medium">
               Suma (IBT)
@@ -400,7 +340,6 @@ function App() {
             />
           </div>
 
-          {/* Bridge Button */}
           <button
             onClick={executeBridge}
             disabled={loading}
@@ -419,7 +358,6 @@ function App() {
             )}
           </button>
 
-          {/* Status Messages */}
           {status.message && (
             <div
               className={`mt-6 p-4 rounded-xl flex items-start gap-3 ${
@@ -442,7 +380,6 @@ function App() {
           )}
         </div>
 
-        {/* Instructions */}
         <div className="mt-6 bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
           <h3 className="text-white font-semibold mb-3">
             📋 Pași pentru setup:
